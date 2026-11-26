@@ -32,7 +32,7 @@ Single user (me), single device (Google Pixel 9). Planning happens on the phone 
 | id | UUID | local id |
 | title | String | required, non-blank |
 | notes | String? | |
-| status | OPEN / DONE / CANCELLED | |
+| status | OPEN / DONE | no CANCELLED status: cancelling a task means deleting it |
 | dueDate | LocalDate? | date only (Google Tasks due dates are date-only) |
 | availableFrom | LocalDate? | hidden before this date |
 | dependencies | List<Dependency> | |
@@ -50,7 +50,7 @@ Single user (me), single device (Google Pixel 9). Planning happens on the phone 
 ### Derived state (never stored)
 - **AVAILABLE** — status OPEN, and `availableFrom` is null or ≤ today, and every dependency is satisfied.
 - **LOCKED** — status OPEN but not available. Must expose the reason(s): "Waiting on: <title>", "Available from 3 Dec", "Available 2 days after <title>" (with the resulting date).
-- **DONE**, **CANCELLED** — from status.
+- **DONE** — from status.
 
 A dependency is **satisfied** when the dependency task is DONE and `date(completedAt, local tz) + delayDays ≤ today`.
 
@@ -59,7 +59,9 @@ A dependency is **satisfied** when the dependency task is DONE and `date(complet
 - A task cannot depend on itself.
 - Adding a dependency that would create a cycle is rejected with a clear error.
 - Undoing a completion (DONE → OPEN) re-locks dependents that are still OPEN.
-- Deleting a task removes it from other tasks' dependency lists (ask for confirmation if it has dependents).
+- Delete is the only way to cancel a task, and it is a hard delete. Deleting a task removes it from other tasks' dependency lists, so dependents may unlock (ask for confirmation if it has dependents).
+- Exception — deleting a DONE task must not change its dependents: for each dependent still inside that dependency's delay window, set the dependent's `availableFrom` to `max(existing availableFrom, date(completedAt, local tz) + delayDays)` before removing the dependency. Applies to local deletes and deletes pulled from Google alike. (Deleting an OPEN task frees its dependents as above.)
+- When a task becomes available, it moves to the top of the Available list (its `position` is set above all others). This happens in the same write that unlocks it (e.g. completing its last dependency) or, for date-based unlocks, during the midnight refresh. No extra field or "newly unlocked" marker is stored.
 - Availability must be re-evaluated at local midnight so date-gated tasks appear without opening the app.
 
 ## 4. UI
@@ -92,15 +94,20 @@ Look and feel: close to Google Tasks — Material 3, minimal, fast. Polish (anim
   - Task becomes AVAILABLE → create it in the target list (title, notes, due date).
   - Title / notes / due date edited locally → update in Google.
   - Completed locally → mark completed in Google.
-  - Task becomes LOCKED again (undo, new dependency added) or is deleted/cancelled locally → delete from Google.
+  - Task becomes LOCKED again (undo, new dependency added) or is deleted locally → delete from Google.
 - **Pull (Google → app):** on app open and every 15 minutes (WorkManager minimum):
   - Fetch changes since last sync (`updatedMin`).
   - Completed in Google → complete locally (which may unlock dependents → pushed).
   - Title / notes / due edited in Google → update locally; conflicts resolved by last write wins on `updated` timestamp.
-  - Deleted in Google → mark CANCELLED locally.
+  - Deleted in Google → delete locally, with the same effect as a local delete (removed from dependents' dependency lists; no confirmation possible).
   - Task created directly in Google (no mapping) → import as a new local OPEN task with no rules.
 - A mapping table links local id ↔ Google task id. **Every sync operation must be idempotent** — running sync twice must never create duplicates.
 - Local actions apply instantly; outgoing changes go through a persisted queue retried with backoff when offline.
+- **Duplicate prevention for creates** (a lost `tasks.insert` response must not produce a second Google task):
+  1. Before sending a create, the queue entry is persisted as *in flight* with the attempt time; on success the Google id is stored in the mapping and the entry is cleared.
+  2. Before retrying an in-flight create, list the target list's tasks updated since shortly before the attempt; if an unmapped task with the same title, notes and due date exists, map it instead of inserting again.
+  3. During pull, an unmapped Google task that matches (title, notes, due) a local task with an in-flight or recent create is mapped to it instead of being imported as a new task.
+  - Later, not v1: a cleanup pass deleting extra Google tasks mapped to the same local task; a hidden local-id marker in notes only if matching proves insufficient.
 - **One-time import:** on first sign-in, import all open tasks from the chosen list.
 
 ### Known API limits (verify against the Google Tasks API docs before relying on them)
@@ -124,7 +131,7 @@ Look and feel: close to Google Tasks — Material 3, minimal, fast. Polish (anim
 
 ## 8. Build order (each slice: builds, tests pass, committed)
 
-1. **Core logic** — model, availability, delays, lock reasons, cycle detection. Exhaustive unit tests (edge cases: delay crossing midnight, undo, cancelled dependency, multiple dependencies, time zone).
+1. **Core logic** — model, availability, delays, lock reasons, cycle detection. Exhaustive unit tests (edge cases: delay crossing midnight, undo, deleted OPEN dependency, deleted DONE dependency inside its delay window, multiple dependencies, time zone).
 2. **Persistence** — Room schema, DAOs, repository, tests.
 3. **UI** — Available, Locked, Done, Task detail; complete/undo.
 4. **Widget** — available list, complete from widget, midnight refresh.
@@ -138,12 +145,14 @@ Look and feel: close to Google Tasks — Material 3, minimal, fast. Polish (anim
 
 Recurring tasks, subtasks, multiple lists, reminders/notifications, sharing, tablet layouts, web or desktop versions, backups beyond Google sync.
 
-## 10. Open questions (proposed default in brackets)
+## 10. Decisions (formerly open questions)
 
-1. Does a CANCELLED dependency block its dependents? [No — treated as satisfied, and the lock reason disappears.]
-2. Can a task have both `availableFrom` and dependencies? [Yes — all conditions must hold.]
-3. When a task unlocks, where does it go in the order? [Top of the Available list.]
-4. Should the Locked screen show tasks that will never unlock (dependency deleted)? [Not possible — deleting removes the dependency.]
+1. Cancelling = deleting. There is no CANCELLED status; a delete (local or in Google) is a hard delete that removes the task from dependents' dependency lists. Deleting a DONE task converts any pending delay on its dependents into an `availableFrom` date, so their unlock date does not change (§3 Rules).
+2. A task can have both `availableFrom` and dependencies; all conditions must hold.
+3. An unlocked task moves to the top of the Available list (see §3 Rules). No "newly unlocked" highlight or timestamp.
+4. Tasks that can never unlock cannot exist: deleting a task removes it as a dependency.
+5. Reorder before milestone 8 is a "Move up / Move down" menu; drag-and-drop comes in milestone 8.
+6. Create duplicates are prevented with steps 1–3 in §6; cleanup pass and notes marker are deferred.
 
 ## 11. Working agreements for the coding agent
 

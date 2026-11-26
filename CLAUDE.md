@@ -43,8 +43,9 @@ On Windows use `.\gradlew.bat` (or `./gradlew` from Git Bash).
 ## Invariants that are easy to break
 
 - Never call `LocalDate.now()` / `Instant.now()` directly — always read time from an injected `Clock`. "Today" is the device-local date.
-- Task state AVAILABLE/LOCKED is derived, never stored. A dependency is satisfied when the dependency is DONE and `date(completedAt, local tz) + delayDays <= today`; a CANCELLED dependency counts as satisfied (SPEC §10 default).
-- Reject self-dependencies and cycles with a clear error. Deleting a task removes it from other tasks' dependency lists.
+- Task state AVAILABLE/LOCKED is derived, never stored. A dependency is satisfied when the dependency is DONE and `date(completedAt, local tz) + delayDays <= today`; there is no CANCELLED status (SPEC §10).
+- Reject self-dependencies and cycles with a clear error. Delete (local or from Google) is the only way to cancel; it is a hard delete that removes the task from other tasks' dependency lists. Deleting a DONE task must not move a dependent's unlock date: a still-pending delay is first converted into the dependent's `availableFrom` (`max(existing, completedDate + delayDays)`).
+- A task that unlocks moves to the top of Available by rewriting its `position`; no unlock timestamp or "new" flag is stored.
 - Local DB is the source of truth for structure: dependencies, `availableFrom` and delays are never written to Google Tasks. Only AVAILABLE tasks are mirrored to Google.
 - Every sync operation must be idempotent (local id ↔ Google id mapping table; running sync twice must never create duplicates). Outgoing changes go through a persisted, retried queue.
 - Availability must be re-evaluated at local midnight (widget + Google push) without the app being opened.
