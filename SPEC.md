@@ -1,6 +1,6 @@
 # Task Manager — Spec (v1)
 
-Working name: TaskManager. Package: `com.example.taskmanager` (change before first commit).
+Working name: TaskManager. Package: `com.david.taskmanager`.
 
 ## 1. Goal
 
