@@ -61,7 +61,7 @@ A dependency is **satisfied** when the dependency task is DONE and `date(complet
 - Undoing a completion (DONE → OPEN) re-locks dependents that are still OPEN.
 - Delete is the only way to cancel a task, and it is a hard delete. Deleting a task removes it from other tasks' dependency lists, so dependents may unlock (ask for confirmation if it has dependents).
 - Exception — deleting a DONE task must not change its dependents: for each dependent still inside that dependency's delay window, set the dependent's `availableFrom` to `max(existing availableFrom, date(completedAt, local tz) + delayDays)` before removing the dependency. Applies to local deletes and deletes pulled from Google alike. (Deleting an OPEN task frees its dependents as above.)
-- When a task becomes available, it moves to the top of the Available list (its `position` is set above all others). This happens in the same write that unlocks it (e.g. completing its last dependency) or, for date-based unlocks, during the midnight refresh. No extra field or "newly unlocked" marker is stored.
+- When a task becomes available, it moves to the top of the Available list (its `position` is set above all others). This happens in the same write that unlocks it (e.g. completing its last dependency, or undoing the task's own completion) or, for date-based unlocks, during the midnight refresh. No extra field or "newly unlocked" marker is stored.
 - Availability must be re-evaluated at local midnight so date-gated tasks appear without opening the app.
 
 ## 4. UI

@@ -118,14 +118,29 @@ class TaskOperationsTest {
     // --- uncomplete ------------------------------------------------------------------------
 
     @Test
-    fun `uncomplete reopens the task and keeps its position`() {
+    fun `uncomplete reopens the task and moves it to the top`() {
         val a = doneTask("A", instantAt(LocalDateTime.of(2026, 11, 30, 12, 0)), position = 4)
         val other = openTask("Other", position = 1)
-        val result = ops.uncomplete(tasksOf(a, other), a.id).getValue(a.id)
-        assertEquals(TaskStatus.OPEN, result.status)
-        assertNull(result.completedAt)
-        assertEquals(now, result.updatedAt)
-        assertEquals(4L, result.position)
+        val result = ops.uncomplete(tasksOf(a, other), a.id)
+        val reopened = result.getValue(a.id)
+        assertEquals(TaskStatus.OPEN, reopened.status)
+        assertNull(reopened.completedAt)
+        assertEquals(now, reopened.updatedAt)
+        assertEquals(TaskState.Available, result.stateOf(a))
+        assertTrue(reopened.position < result.positionOf(other))
+        assertEquals(1L, result.positionOf(other))
+    }
+
+    @Test
+    fun `uncompleting a task that is locked by its own rules does not move it`() {
+        // Its dependency was reopened after it was completed, so the reopened task goes to Locked.
+        val dep = openTask("Dep", position = 1)
+        val a = doneTask("A", instantAt(LocalDateTime.of(2026, 11, 30, 12, 0)), position = 4).dependsOn(dep)
+
+        val result = ops.uncomplete(tasksOf(dep, a), a.id)
+
+        assertEquals(TaskState.Locked(listOf(WaitingOn(dep.id, "Dep", 0)), null), result.stateOf(a))
+        assertEquals(4L, result.positionOf(a))
     }
 
     @Test

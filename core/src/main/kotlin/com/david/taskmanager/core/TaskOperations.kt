@@ -11,9 +11,10 @@ import java.time.LocalDate
  * Pure state transitions on the whole task set (SPEC §3 Rules). Each operation takes the current tasks and
  * returns the new tasks; the caller persists the difference in one write.
  *
- * Every operation also moves tasks that it unlocks (LOCKED → AVAILABLE) to the top of the list by giving them
- * positions below all others. Only the task an operation targets gets a new `updatedAt`; side effects (moving
- * to the top, converting a delay into `availableFrom`, removing a deleted dependency) do not change it.
+ * Every operation also moves tasks that become available (LOCKED → AVAILABLE, or DONE → AVAILABLE on undo) to
+ * the top of the list by giving them positions below all others. Only the task an operation targets gets a new
+ * `updatedAt`; side effects (moving to the top, converting a delay into `availableFrom`, removing a deleted
+ * dependency) do not change it.
  *
  * Operations on a task that does not exist, or that is already in the requested state, return the input
  * unchanged, so that applying the same change twice (e.g. from sync) is harmless.
@@ -91,8 +92,9 @@ class TaskOperations(private val clock: Clock) {
     }
 
     /**
-     * Tasks present in both maps that were LOCKED in [before] (evaluated on [beforeDate]) and are AVAILABLE in
-     * [after] (evaluated today) get positions above every other task, keeping their relative order.
+     * Tasks present in both maps that were not AVAILABLE (LOCKED or DONE) in [before] (evaluated on
+     * [beforeDate]) and are AVAILABLE in [after] (evaluated today) get positions above every other task,
+     * keeping their relative order.
      */
     private fun promoteNewlyAvailable(
         before: Map<TaskId, Task>,
@@ -103,7 +105,7 @@ class TaskOperations(private val clock: Clock) {
         val unlocked = after.values
             .filter { task ->
                 val previous = before[task.id] ?: return@filter false
-                evaluator.evaluate(previous, before, beforeDate) is TaskState.Locked &&
+                !evaluator.isAvailable(previous, before, beforeDate) &&
                     evaluator.isAvailable(task, after, today)
             }
             .sortedBy { it.position }
