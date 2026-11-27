@@ -13,14 +13,19 @@ Done:
   `CompleteTaskAction`, title opens the task, "+" opens quick add, header opens the app) and the midnight
   refresh (`refresh/MidnightRefresh.kt`: self-rescheduling `MidnightRefreshWorker`, `MidnightScheduler`,
   `TimeChangeReceiver`). Launch intents in `launch/LaunchIntents.kt`. 165 unit tests (94 core, 71 app).
-Next: David to verify slice 4 on the Pixel 9 (checklist below) → **milestone: replaces Google Tasks**.
-Then Slice 5 — Google sign-in + one-time import (plan first; needs Google auth / Tasks API dependencies and
+  Verified on the Pixel 9 (2026-11-27) → **milestone reached: replaces Google Tasks.**
+Next: Slice 5 — Google sign-in + one-time import (plan first; needs Google auth / Tasks API dependencies and
 the manual Cloud setup from SPEC §6).
-Slice 4 device checklist: add the widget (long-press home screen → Widgets → TaskManager); check a task off
-from it; tap a title (opens its detail, back → Available); tap "+" (quick-add sheet open); edit in the app and
-see the widget update; a task with "available from" tomorrow appears on the widget after midnight without
-opening the app (may lag by minutes in Doze).
 Open items: none.
+Backlog (after the sync slices; not scheduled):
+- Polish (slice 8): tapping anywhere on the widget (outside the checkbox / "+") opens the app; drag-and-drop
+  reordering in Available instead of the Move up / down menu; other UI tweaks David will list.
+- Second iteration — day-locked tasks: available only on chosen weekdays (e.g. "go to the office", "call the
+  dentist" Mon–Fri). Fits as a new derived lock reason in `AvailabilityEvaluator`; the midnight refresh
+  already re-evaluates daily.
+- Second iteration — recurring tasks (e.g. "clean my room", "meal prep"): completing one schedules the next
+  occurrence. Needs a design for how it interacts with Google sync (completion pulled from Google must also
+  create the next occurrence locally), so plan it after slices 5–7.
 Decisions so far (revisit if wrong):
 - List order is ascending `position`; "move to top" = position below every other task. New tasks go on top.
 - Only the task an operation targets gets a new `updatedAt`; moving to the top / reordering, the delay →
