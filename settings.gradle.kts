@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "TaskManager"
 include(":app")
+include(":core")
