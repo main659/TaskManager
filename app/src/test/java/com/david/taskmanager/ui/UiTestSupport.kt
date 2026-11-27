@@ -37,10 +37,3 @@ fun uiTask(
 /** Creates a ViewModel in [store] so that `store.clear()` runs its `onCleared()`, as leaving a screen does. */
 inline fun <reified VM : ViewModel> ViewModelStore.create(noinline create: () -> VM): VM =
     ViewModelProvider.create(this, viewModelFactory { initializer { create() } })[VM::class]
-
-/**
- * SDK the Compose UI tests run on under Robolectric. The Espresso version pulled in by ui-test-junit4 (3.5.0)
- * reflectively calls InputManager.getInstance(), which newer platform versions no longer have.
- * Remove this pin once Espresso is upgraded (3.6+).
- */
-const val UI_TEST_SDK = 34

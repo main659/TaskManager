@@ -18,11 +18,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
-import com.david.taskmanager.ui.UI_TEST_SDK
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [UI_TEST_SDK])
 class TaskDetailScreenTest {
 
     @get:Rule

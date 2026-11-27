@@ -12,10 +12,7 @@ Next: Slice 4 — Glance widget (available list, complete from widget, "+" opens
 and the midnight refresh worker (WorkManager). Plan it and get approval first; Glance and WorkManager are new
 dependencies. Widget deep links = set the Navigation 3 back stack (`Screen.Detail`) from the intent.
 Slice 3 verified on the Pixel 9 by David (2026-11-27): works well.
-Open items:
-- Compose UI tests are pinned to Robolectric SDK 34 (`UI_TEST_SDK`) because ui-test-junit4 pulls Espresso 3.5.0,
-  which breaks on newer SDKs. Fix: bump `espressoCore` to 3.7.0 and add it to `testImplementation`
-  (needs approval: catalog change), then remove the pin.
+Open items: none.
 Decisions so far (revisit if wrong):
 - List order is ascending `position`; "move to top" = position below every other task. New tasks go on top.
 - Only the task an operation targets gets a new `updatedAt`; moving to the top / reordering, the delay →
