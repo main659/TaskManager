@@ -18,7 +18,12 @@ import java.time.LocalDate
  * [TaskOperations] call and saves the difference, all in one transaction: the rules live in `core`, and an
  * exception (e.g. a rejected cycle) rolls the whole write back.
  */
-class TaskRepository(private val db: TaskDatabase, private val clock: Clock) {
+class TaskRepository(
+    private val db: TaskDatabase,
+    private val clock: Clock,
+    /** Called after a write has committed a change (not after no-ops), e.g. to update the home-screen widget. */
+    private val onChange: suspend () -> Unit = {},
+) {
 
     private val dao = db.taskDao()
     private val ops = TaskOperations(clock)
@@ -89,28 +94,34 @@ class TaskRepository(private val db: TaskDatabase, private val clock: Clock) {
      * nothing is promoted.
      */
     suspend fun refreshForToday() {
-        db.withTransaction {
+        val changed = db.withTransaction {
             val today = LocalDate.now(clock)
             val last = dao.getState(KEY_LAST_EVALUATED_DATE)?.let(LocalDate::parse)
+            var tasksChanged = false
             if (last != null && last < today) {
                 val before = load()
-                save(before, ops.refreshForDate(before, last))
+                tasksChanged = save(before, ops.refreshForDate(before, last))
             }
             dao.putState(AppStateEntity(KEY_LAST_EVALUATED_DATE, today.toString()))
+            // A new date can change what is shown (e.g. due dates) even when no task moved.
+            tasksChanged || last != today
         }
+        if (changed) onChange()
     }
 
     private suspend fun write(operation: (Map<TaskId, Task>) -> Map<TaskId, Task>) {
-        db.withTransaction {
+        val changed = db.withTransaction {
             val before = load()
             save(before, operation(before))
         }
+        if (changed) onChange()
     }
 
     private suspend fun load(): Map<TaskId, Task> = dao.getAll().map { it.toModel() }.associateBy { it.id }
 
-    private suspend fun save(before: Map<TaskId, Task>, after: Map<TaskId, Task>) {
-        if (after === before) return
+    /** Persists the difference; returns whether anything changed. */
+    private suspend fun save(before: Map<TaskId, Task>, after: Map<TaskId, Task>): Boolean {
+        if (after === before) return false
         val changed = after.values.filter { before[it.id] != it }
         val removed = (before.keys - after.keys).map { it.toString() }
         if (changed.isNotEmpty()) {
@@ -119,6 +130,7 @@ class TaskRepository(private val db: TaskDatabase, private val clock: Clock) {
             dao.insertDependencies(changed.flatMap { it.toDependencyEntities() })
         }
         if (removed.isNotEmpty()) dao.deleteTasks(removed)
+        return changed.isNotEmpty() || removed.isNotEmpty()
     }
 
     companion object {

@@ -210,6 +210,26 @@ class TaskRepositoryTest {
     }
 
     @Test
+    fun `onChange runs after committed changes only`() = runTest {
+        var changes = 0
+        val repo = TaskRepository(db, clock, onChange = { changes++ })
+
+        val a = repo.addTask("A")
+        assertEquals(1, changes)
+
+        repo.complete(a)
+        repo.complete(a) // no-op
+        assertEquals(2, changes)
+
+        runCatching { repo.setDependencies(a, listOf(Dependency(a))) } // rejected
+        assertEquals(2, changes)
+
+        repo.refreshForToday() // first run records the date: the widget's "today" may have changed
+        repo.refreshForToday() // same day: nothing
+        assertEquals(3, changes)
+    }
+
+    @Test
     fun `repeating an operation changes nothing the second time`() = runTest {
         val a = repo.addTask("A")
         repo.complete(a)

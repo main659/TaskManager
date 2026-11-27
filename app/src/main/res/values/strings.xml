@@ -61,4 +61,10 @@
         <item quantity="one">This can\'t be undone. %d task waits on this one and will stop waiting.</item>
         <item quantity="other">This can\'t be undone. %d tasks wait on this one and will stop waiting.</item>
     </plurals>
+
+    <!-- Widget -->
+    <string name="widget_name">Available tasks</string>
+    <string name="widget_description">Your available tasks; check them off from the home screen.</string>
+    <string name="widget_empty">Nothing to do right now</string>
+    <string name="widget_mark_complete">Mark %1$s complete</string>
 </resources>

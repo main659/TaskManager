@@ -66,7 +66,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @Composable
-fun TaskListsRoute(viewModel: TaskListsViewModel, onOpenTask: (TaskId) -> Unit) {
+fun TaskListsRoute(viewModel: TaskListsViewModel, onOpenTask: (TaskId) -> Unit, startWithQuickAdd: Boolean = false) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     TaskListsScreen(
         state = state,
@@ -75,6 +75,7 @@ fun TaskListsRoute(viewModel: TaskListsViewModel, onOpenTask: (TaskId) -> Unit) 
         onUncomplete = { viewModel.uncomplete(it) },
         onMove = { id, direction -> viewModel.move(id, direction) },
         onOpenTask = onOpenTask,
+        startWithQuickAdd = startWithQuickAdd,
     )
 }
 
@@ -88,9 +89,10 @@ fun TaskListsScreen(
     onMove: (TaskId, MoveDirection) -> Unit,
     onOpenTask: (TaskId) -> Unit,
     modifier: Modifier = Modifier,
+    startWithQuickAdd: Boolean = false,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(TAB_AVAILABLE) }
-    var showQuickAdd by rememberSaveable { mutableStateOf(false) }
+    var showQuickAdd by rememberSaveable { mutableStateOf(startWithQuickAdd) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val completedMessage = stringResource(R.string.task_completed)

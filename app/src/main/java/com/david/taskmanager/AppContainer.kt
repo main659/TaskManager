@@ -2,6 +2,10 @@ package com.david.taskmanager
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
+import androidx.glance.appwidget.updateAll
+import com.david.taskmanager.widget.TaskWidget
+import kotlinx.coroutines.CancellationException
 import com.david.taskmanager.core.SystemZoneClock
 import com.david.taskmanager.data.TaskDatabase
 import com.david.taskmanager.data.TaskRepository
@@ -24,8 +28,23 @@ class AppContainer(context: Context) {
      */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    private val appContext: Context = context.applicationContext
+
     val database: TaskDatabase = TaskDatabase.create(context)
-    val repository: TaskRepository = TaskRepository(database, clock)
+
+    /** Every committed change also refreshes the home-screen widget(s). */
+    val repository: TaskRepository = TaskRepository(database, clock, onChange = ::updateWidgets)
+
+    private suspend fun updateWidgets() {
+        try {
+            TaskWidget().updateAll(appContext)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A widget refresh failing must never fail the write that triggered it.
+            Log.w("AppContainer", "Widget update failed", e)
+        }
+    }
 
     private val _today = MutableStateFlow(LocalDate.now(clock))
 

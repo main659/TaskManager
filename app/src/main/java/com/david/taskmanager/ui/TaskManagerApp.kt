@@ -1,7 +1,6 @@
 package com.david.taskmanager.ui
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -13,6 +12,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.david.taskmanager.AppContainer
 import com.david.taskmanager.core.model.TaskId
+import com.david.taskmanager.launch.LaunchState
 import com.david.taskmanager.ui.detail.TaskDetailRoute
 import com.david.taskmanager.ui.detail.TaskDetailViewModel
 import com.david.taskmanager.ui.lists.TaskListsRoute
@@ -46,8 +46,9 @@ private val BackStackSaver = listSaver<SnapshotStateList<Screen>, String>(
 )
 
 @Composable
-fun TaskManagerApp(container: AppContainer) {
-    val backStack = rememberSaveable(saver = BackStackSaver) { mutableStateListOf<Screen>(Screen.Main) }
+fun TaskManagerApp(container: AppContainer, launch: LaunchState = LaunchState(listOf(Screen.Main))) {
+    // The launch state only seeds the back stack; after a configuration change the saved stack wins.
+    val backStack = rememberSaveable(saver = BackStackSaver) { launch.backStack.toMutableStateList() }
 
     NavDisplay(
         backStack = backStack,
@@ -62,7 +63,11 @@ fun TaskManagerApp(container: AppContainer) {
                 val viewModel = viewModel {
                     TaskListsViewModel(container.repository, container.clock, container.today, container.appScope)
                 }
-                TaskListsRoute(viewModel, onOpenTask = { backStack.add(Screen.Detail(it)) })
+                TaskListsRoute(
+                    viewModel,
+                    onOpenTask = { backStack.add(Screen.Detail(it)) },
+                    startWithQuickAdd = launch.quickAdd,
+                )
             }
             entry<Screen.Detail> { key ->
                 val viewModel = viewModel {
