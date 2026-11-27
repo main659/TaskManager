@@ -23,6 +23,58 @@ class TaskOperations(private val clock: Clock) {
 
     private val evaluator = AvailabilityEvaluator(clock)
 
+    /**
+     * Creates an OPEN task at the top of the list.
+     *
+     * @throws DependencyException if [dependencies] is invalid.
+     * @throws IllegalArgumentException if [id] already exists or [title] is blank.
+     */
+    fun add(
+        tasks: Map<TaskId, Task>,
+        id: TaskId,
+        title: String,
+        notes: String? = null,
+        dueDate: LocalDate? = null,
+        availableFrom: LocalDate? = null,
+        dependencies: List<Dependency> = emptyList(),
+    ): Map<TaskId, Task> {
+        require(id !in tasks) { "Task $id already exists" }
+        val now = clock.instant()
+        val task = Task(
+            id = id,
+            title = title,
+            notes = notes,
+            dueDate = dueDate,
+            availableFrom = availableFrom,
+            dependencies = dependencies,
+            position = (tasks.values.minOfOrNull { it.position } ?: 1L) - 1,
+            createdAt = now,
+            updatedAt = now,
+        )
+        val result = tasks + (id to task)
+        DependencyGraph(result).validate(id, dependencies)
+        return result
+    }
+
+    /**
+     * Edits the plain fields of a task. Changing [availableFrom] can lock or unlock it.
+     *
+     * @throws IllegalArgumentException if [title] is blank.
+     */
+    fun updateDetails(
+        tasks: Map<TaskId, Task>,
+        id: TaskId,
+        title: String,
+        notes: String?,
+        dueDate: LocalDate?,
+        availableFrom: LocalDate?,
+    ): Map<TaskId, Task> {
+        val task = tasks[id] ?: return tasks
+        val edited = task.copy(title = title, notes = notes, dueDate = dueDate, availableFrom = availableFrom)
+        if (edited == task) return tasks
+        return transition(tasks) { it + (id to edited.copy(updatedAt = clock.instant())) }
+    }
+
     fun complete(tasks: Map<TaskId, Task>, id: TaskId): Map<TaskId, Task> {
         val task = tasks[id] ?: return tasks
         if (task.status == TaskStatus.DONE) return tasks

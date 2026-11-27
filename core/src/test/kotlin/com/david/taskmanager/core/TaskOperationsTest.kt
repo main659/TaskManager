@@ -373,4 +373,128 @@ class TaskOperationsTest {
         val tasks = tasksOf(openTask("Top", position = 0), openTask("Dated", position = 5, availableFrom = TODAY))
         assertEquals(tasks, ops.refreshForDate(tasks, previousDate = TODAY))
     }
+
+    // --- add -------------------------------------------------------------------------------
+
+    @Test
+    fun `add creates an open task at the top`() {
+        val top = openTask("Top", position = 3)
+        val id = TaskId.random()
+        val due = TODAY.plusDays(7)
+
+        val result = ops.add(tasksOf(top), id, "New", notes = "n", dueDate = due)
+
+        val added = result.getValue(id)
+        assertEquals("New", added.title)
+        assertEquals("n", added.notes)
+        assertEquals(due, added.dueDate)
+        assertEquals(TaskStatus.OPEN, added.status)
+        assertEquals(now, added.createdAt)
+        assertEquals(now, added.updatedAt)
+        assertTrue(added.position < result.positionOf(top))
+        assertEquals(3L, result.positionOf(top))
+    }
+
+    @Test
+    fun `add into an empty set works`() {
+        val id = TaskId.random()
+        assertEquals(setOf(id), ops.add(emptyMap(), id, "First").keys)
+    }
+
+    @Test
+    fun `add stores availableFrom and dependencies`() {
+        val dep = openTask("Dep")
+        val id = TaskId.random()
+        val from = TODAY.plusDays(2)
+
+        val result = ops.add(tasksOf(dep), id, "New", availableFrom = from, dependencies = listOf(Dependency(dep.id, 1)))
+
+        val added = result.getValue(id)
+        assertEquals(from, added.availableFrom)
+        assertEquals(listOf(Dependency(dep.id, 1)), added.dependencies)
+        assertEquals(
+            TaskState.Locked(listOf(LockReason.NotBefore(from), WaitingOn(dep.id, "Dep", 1)), null),
+            result.stateOf(added),
+        )
+    }
+
+    @Test
+    fun `add rejects invalid dependencies`() {
+        val id = TaskId.random()
+        assertThrows(DependencyException.UnknownTask::class.java) {
+            ops.add(emptyMap(), id, "New", dependencies = listOf(Dependency(TaskId.random())))
+        }
+        assertThrows(DependencyException.SelfDependency::class.java) {
+            ops.add(emptyMap(), id, "New", dependencies = listOf(Dependency(id)))
+        }
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `add rejects an existing id`() {
+        val a = openTask("A")
+        ops.add(tasksOf(a), a.id, "Again")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `add rejects a blank title`() {
+        ops.add(emptyMap(), TaskId.random(), " ")
+    }
+
+    // --- updateDetails ---------------------------------------------------------------------
+
+    @Test
+    fun `updateDetails changes the fields and bumps updatedAt`() {
+        val a = openTask("A", position = 2)
+        val due = TODAY.plusDays(3)
+
+        val result = ops.updateDetails(tasksOf(a), a.id, "A2", notes = "n", dueDate = due, availableFrom = null)
+
+        val updated = result.getValue(a.id)
+        assertEquals("A2", updated.title)
+        assertEquals("n", updated.notes)
+        assertEquals(due, updated.dueDate)
+        assertEquals(now, updated.updatedAt)
+        assertEquals(2L, updated.position)
+    }
+
+    @Test
+    fun `updateDetails with unchanged values is a no-op`() {
+        val a = openTask("A")
+        val tasks = tasksOf(a)
+        assertSame(tasks, ops.updateDetails(tasks, a.id, "A", notes = null, dueDate = null, availableFrom = null))
+    }
+
+    @Test
+    fun `updateDetails on an unknown task is a no-op`() {
+        val tasks = tasksOf(openTask("A"))
+        assertSame(tasks, ops.updateDetails(tasks, TaskId.random(), "X", null, null, null))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `updateDetails rejects a blank title`() {
+        val a = openTask("A")
+        ops.updateDetails(tasksOf(a), a.id, "", null, null, null)
+    }
+
+    @Test
+    fun `moving availableFrom to today unlocks the task and moves it to the top`() {
+        val top = openTask("Top", position = 0)
+        val a = openTask("A", position = 5, availableFrom = TODAY.plusDays(3))
+
+        val result = ops.updateDetails(tasksOf(top, a), a.id, "A", null, null, availableFrom = TODAY)
+
+        assertEquals(TaskState.Available, result.stateOf(a))
+        assertTrue(result.positionOf(a) < result.positionOf(top))
+    }
+
+    @Test
+    fun `moving availableFrom to the future locks the task without moving it`() {
+        val a = openTask("A", position = 5)
+        val from = TODAY.plusDays(3)
+
+        val result = ops.updateDetails(tasksOf(a), a.id, "A", null, null, availableFrom = from)
+
+        assertEquals(TaskState.Locked(listOf(LockReason.NotBefore(from)), from), result.stateOf(a))
+        assertEquals(5L, result.positionOf(a))
+    }
 }
