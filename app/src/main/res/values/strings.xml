@@ -1,3 +1,64 @@
 <resources>
     <string name="app_name">TaskManager</string>
+
+    <!-- Main screen -->
+    <string name="tab_available">Available</string>
+    <string name="tab_locked">Locked</string>
+    <string name="tab_done">Done</string>
+    <string name="tab_with_count">%1$s (%2$d)</string>
+    <string name="add_task">Add task</string>
+    <string name="new_task_hint">New task</string>
+    <string name="task_completed">Task completed</string>
+    <string name="undo">Undo</string>
+    <string name="more_options">More options</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="edit">Edit</string>
+    <string name="mark_complete">Mark complete</string>
+    <string name="mark_not_complete">Mark not complete</string>
+    <string name="locked">Locked</string>
+
+    <!-- Dates and lock reasons -->
+    <string name="due_on">Due %1$s</string>
+    <string name="unlocks_on">Unlocks %1$s</string>
+    <string name="waiting_on">Waiting on: %1$s</string>
+    <plurals name="waiting_on_with_delay">
+        <item quantity="one">Waiting on: %2$s, then %1$d day</item>
+        <item quantity="other">Waiting on: %2$s, then %1$d days</item>
+    </plurals>
+    <string name="available_from">Available from %1$s</string>
+    <plurals name="available_days_after">
+        <item quantity="one">Available %1$d day after %2$s (%3$s)</item>
+        <item quantity="other">Available %1$d days after %2$s (%3$s)</item>
+    </plurals>
+
+    <!-- Detail screen -->
+    <string name="back">Back</string>
+    <string name="title">Title</string>
+    <string name="notes">Notes</string>
+    <string name="due_date">Due date</string>
+    <string name="available_from_label">Available from</string>
+    <string name="not_set">Not set</string>
+    <string name="clear">Clear</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="dependencies">Waits on</string>
+    <string name="no_dependencies">Doesn\'t wait on any task</string>
+    <string name="add_dependency">Add task to wait on</string>
+    <string name="no_candidates">No other task can be added</string>
+    <string name="remove_dependency">Remove</string>
+    <string name="decrease_delay">Fewer days</string>
+    <string name="increase_delay">More days</string>
+    <plurals name="delay_days">
+        <item quantity="one">+%d day</item>
+        <item quantity="other">+%d days</item>
+    </plurals>
+    <string name="status_done">Done</string>
+    <string name="delete">Delete</string>
+    <string name="delete_title">Delete task?</string>
+    <string name="delete_message">This can\'t be undone.</string>
+    <plurals name="delete_message_with_dependents">
+        <item quantity="one">This can\'t be undone. %d task waits on this one and will stop waiting.</item>
+        <item quantity="other">This can\'t be undone. %d tasks wait on this one and will stop waiting.</item>
+    </plurals>
 </resources>

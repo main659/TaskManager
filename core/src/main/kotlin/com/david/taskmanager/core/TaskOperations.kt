@@ -7,6 +7,8 @@ import com.david.taskmanager.core.model.TaskStatus
 import java.time.Clock
 import java.time.LocalDate
 
+enum class MoveDirection { UP, DOWN }
+
 /**
  * Pure state transitions on the whole task set (SPEC §3 Rules). Each operation takes the current tasks and
  * returns the new tasks; the caller persists the difference in one write.
@@ -126,6 +128,27 @@ class TaskOperations(private val clock: Clock) {
         return transition(tasks) {
             it + (id to task.copy(dependencies = dependencies, updatedAt = clock.instant()))
         }
+    }
+
+    /**
+     * Manual reorder: swaps the positions of [id] and its neighbour in [orderedIds] (the list as the user
+     * sees it, top first). Moving past either end, or a task not in the list, is a no-op.
+     */
+    fun move(
+        tasks: Map<TaskId, Task>,
+        id: TaskId,
+        orderedIds: List<TaskId>,
+        direction: MoveDirection,
+    ): Map<TaskId, Task> {
+        val index = orderedIds.indexOf(id)
+        if (index < 0) return tasks
+        val neighbourId = orderedIds.getOrNull(if (direction == MoveDirection.UP) index - 1 else index + 1)
+            ?: return tasks
+        val task = tasks[id] ?: return tasks
+        val neighbour = tasks[neighbourId] ?: return tasks
+        return tasks +
+            (id to task.copy(position = neighbour.position)) +
+            (neighbourId to neighbour.copy(position = task.position))
     }
 
     /**

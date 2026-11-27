@@ -156,6 +156,60 @@ class TaskRepositoryTest {
     }
 
     @Test
+    fun `field setters change only their own fields`() = runTest {
+        val from = TODAY.plusDays(3)
+        val due = TODAY.plusDays(9)
+        val a = repo.addTask("A", notes = "n", dueDate = due, availableFrom = from)
+
+        repo.setTitleAndNotes(a, "A2", null)
+        assertEquals(listOf("A2", null, due, from), task(a).run { listOf(title, notes, dueDate, availableFrom) })
+
+        repo.setDueDate(a, null)
+        assertEquals(listOf("A2", null, null, from), task(a).run { listOf(title, notes, dueDate, availableFrom) })
+
+        repo.setAvailableFrom(a, TODAY.plusDays(5))
+        assertEquals(TODAY.plusDays(5), task(a).availableFrom)
+    }
+
+    @Test
+    fun `clearing availableFrom unlocks the task and moves it to the top`() = runTest {
+        val a = repo.addTask("A", availableFrom = TODAY.plusDays(3))
+        repo.addTask("Top")
+
+        repo.setAvailableFrom(a, null)
+
+        assertEquals(a, all().first().id)
+        assertEquals(TaskState.Available, state(a))
+    }
+
+    @Test
+    fun `moveAvailable reorders within the available list only`() = runTest {
+        val bottom = repo.addTask("Bottom")
+        repo.addTask("Locked", availableFrom = TODAY.plusDays(1))
+        val top = repo.addTask("Top")
+        // Stored order: Top, Locked, Bottom. Available order: Top, Bottom.
+
+        repo.moveAvailable(bottom, com.david.taskmanager.core.MoveDirection.UP)
+
+        val available = all().filter { state(it.id) == TaskState.Available }.map { it.id }
+        assertEquals(listOf(bottom, top), available)
+    }
+
+    @Test
+    fun `updateDependencies applies a change to the current list and rejects cycles`() = runTest {
+        val a = repo.addTask("A")
+        val b = repo.addTask("B")
+        val c = repo.addTask("C", dependencies = listOf(Dependency(a)))
+
+        repo.updateDependencies(c) { it + Dependency(b, 2) }
+        assertEquals(listOf(Dependency(a), Dependency(b, 2)), task(c).dependencies)
+
+        val failure = runCatching { repo.updateDependencies(a) { it + Dependency(c) } }.exceptionOrNull()
+        assertTrue(failure is DependencyException.Cycle)
+        assertEquals(emptyList<Dependency>(), task(a).dependencies)
+    }
+
+    @Test
     fun `repeating an operation changes nothing the second time`() = runTest {
         val a = repo.addTask("A")
         repo.complete(a)

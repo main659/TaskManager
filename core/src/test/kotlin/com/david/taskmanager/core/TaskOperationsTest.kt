@@ -440,6 +440,66 @@ class TaskOperationsTest {
         ops.add(emptyMap(), TaskId.random(), " ")
     }
 
+    // --- move ------------------------------------------------------------------------------
+
+    @Test
+    fun `move up swaps positions with the previous task in the list`() {
+        val a = openTask("A", position = 1)
+        val b = openTask("B", position = 5)
+        val c = openTask("C", position = 9)
+        val order = listOf(a.id, b.id, c.id)
+
+        val result = ops.move(tasksOf(a, b, c), c.id, order, MoveDirection.UP)
+
+        assertEquals(5L, result.positionOf(c))
+        assertEquals(9L, result.positionOf(b))
+        assertEquals(1L, result.positionOf(a))
+        assertEquals(c.updatedAt, result.getValue(c.id).updatedAt)
+    }
+
+    @Test
+    fun `move down swaps positions with the next task in the list`() {
+        val a = openTask("A", position = 1)
+        val b = openTask("B", position = 5)
+
+        val result = ops.move(tasksOf(a, b), a.id, listOf(a.id, b.id), MoveDirection.DOWN)
+
+        assertEquals(5L, result.positionOf(a))
+        assertEquals(1L, result.positionOf(b))
+    }
+
+    @Test
+    fun `move only considers the given list, skipping tasks outside it`() {
+        val a = openTask("A", position = 1)
+        val hidden = openTask("Hidden", position = 2, availableFrom = TODAY.plusDays(1))
+        val b = openTask("B", position = 3)
+
+        val result = ops.move(tasksOf(a, hidden, b), b.id, listOf(a.id, b.id), MoveDirection.UP)
+
+        assertEquals(1L, result.positionOf(b))
+        assertEquals(3L, result.positionOf(a))
+        assertEquals(2L, result.positionOf(hidden))
+    }
+
+    @Test
+    fun `moving past either end is a no-op`() {
+        val a = openTask("A", position = 1)
+        val b = openTask("B", position = 2)
+        val tasks = tasksOf(a, b)
+        val order = listOf(a.id, b.id)
+        assertSame(tasks, ops.move(tasks, a.id, order, MoveDirection.UP))
+        assertSame(tasks, ops.move(tasks, b.id, order, MoveDirection.DOWN))
+    }
+
+    @Test
+    fun `moving a task that is not in the list or unknown is a no-op`() {
+        val a = openTask("A", position = 1)
+        val b = openTask("B", position = 2)
+        val tasks = tasksOf(a, b)
+        assertSame(tasks, ops.move(tasks, b.id, listOf(a.id), MoveDirection.UP))
+        assertSame(tasks, ops.move(tasks, TaskId.random(), listOf(a.id, b.id), MoveDirection.UP))
+    }
+
     // --- updateDetails ---------------------------------------------------------------------
 
     @Test

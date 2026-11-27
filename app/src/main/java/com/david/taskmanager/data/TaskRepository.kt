@@ -1,6 +1,9 @@
 package com.david.taskmanager.data
 
 import androidx.room.withTransaction
+import com.david.taskmanager.core.AvailabilityEvaluator
+import com.david.taskmanager.core.MoveDirection
+import com.david.taskmanager.core.TaskLists
 import com.david.taskmanager.core.TaskOperations
 import com.david.taskmanager.core.model.Dependency
 import com.david.taskmanager.core.model.Task
@@ -19,6 +22,7 @@ class TaskRepository(private val db: TaskDatabase, private val clock: Clock) {
 
     private val dao = db.taskDao()
     private val ops = TaskOperations(clock)
+    private val evaluator = AvailabilityEvaluator(clock)
 
     /** All tasks, in ascending `position` order. */
     val tasks: Flow<List<Task>> = dao.observeAll().map { rows -> rows.map { it.toModel() } }
@@ -37,6 +41,38 @@ class TaskRepository(private val db: TaskDatabase, private val clock: Clock) {
 
     suspend fun updateDetails(id: TaskId, title: String, notes: String?, dueDate: LocalDate?, availableFrom: LocalDate?) =
         write { ops.updateDetails(it, id, title, notes, dueDate, availableFrom) }
+
+    /** Edits only title and notes; dates are read inside the transaction so concurrent edits don't clash. */
+    suspend fun setTitleAndNotes(id: TaskId, title: String, notes: String?) = write { tasks ->
+        val task = tasks[id] ?: return@write tasks
+        ops.updateDetails(tasks, id, title, notes, task.dueDate, task.availableFrom)
+    }
+
+    suspend fun setDueDate(id: TaskId, dueDate: LocalDate?) = write { tasks ->
+        val task = tasks[id] ?: return@write tasks
+        ops.updateDetails(tasks, id, task.title, task.notes, dueDate, task.availableFrom)
+    }
+
+    suspend fun setAvailableFrom(id: TaskId, availableFrom: LocalDate?) = write { tasks ->
+        val task = tasks[id] ?: return@write tasks
+        ops.updateDetails(tasks, id, task.title, task.notes, task.dueDate, availableFrom)
+    }
+
+    /** Move up / down within the Available list as it is at the time of the write. */
+    suspend fun moveAvailable(id: TaskId, direction: MoveDirection) = write { tasks ->
+        val order = TaskLists.from(tasks.values, evaluator).available.map { it.id }
+        ops.move(tasks, id, order, direction)
+    }
+
+    /**
+     * Changes the dependency list based on its current value, read inside the transaction.
+     *
+     * @throws com.david.taskmanager.core.DependencyException if the result is invalid (nothing is written).
+     */
+    suspend fun updateDependencies(id: TaskId, change: (List<Dependency>) -> List<Dependency>) = write { tasks ->
+        val task = tasks[id] ?: return@write tasks
+        ops.setDependencies(tasks, id, change(task.dependencies))
+    }
 
     suspend fun setDependencies(id: TaskId, dependencies: List<Dependency>) =
         write { ops.setDependencies(it, id, dependencies) }
