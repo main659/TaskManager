@@ -11,7 +11,7 @@ Done:
 Next: Slice 4 — Glance widget (available list, complete from widget, "+" opens quick add, tap opens the task)
 and the midnight refresh worker (WorkManager). Plan it and get approval first; Glance and WorkManager are new
 dependencies. Widget deep links = set the Navigation 3 back stack (`Screen.Detail`) from the intent.
-Not yet verified on a device: please try slice 3 on the Pixel before or during slice 4.
+Slice 3 verified on the Pixel 9 by David (2026-11-27): works well.
 Open items:
 - Compose UI tests are pinned to Robolectric SDK 34 (`UI_TEST_SDK`) because ui-test-junit4 pulls Espresso 3.5.0,
   which breaks on newer SDKs. Fix: bump `espressoCore` to 3.7.0 and add it to `testImplementation`
