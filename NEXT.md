@@ -14,8 +14,22 @@ Done:
   refresh (`refresh/MidnightRefresh.kt`: self-rescheduling `MidnightRefreshWorker`, `MidnightScheduler`,
   `TimeChangeReceiver`). Launch intents in `launch/LaunchIntents.kt`. 165 unit tests (94 core, 71 app).
   Verified on the Pixel 9 (2026-11-27) → **milestone reached: replaces Google Tasks.**
-Next: Slice 5 — Google sign-in + one-time import (plan first; needs Google auth / Tasks API dependencies and
-the manual Cloud setup from SPEC §6).
+- Google Cloud setup (SPEC §6) done 2026-11-28: Tasks API enabled, consent screen In production (home page and
+  privacy policy hosted at https://main659.github.io/taskmanager-site/, repo `main659/taskmanager-site`),
+  Android OAuth client for `com.david.taskmanager` + debug SHA-1 `25:AE:75:…:49:40`. No client id in code.
+- Slice 5 — Google sign-in + one-time import. Top-bar ⋮ → "Google Tasks" screen (`ui/google/`): connect
+  (Play services `AuthorizationClient`, scope `tasks`) → choose a list → import its open tasks → connected /
+  disconnect. `core/sync/Import.kt` (`planImport`, `TaskOperations.addImported`); `google/` (gateway
+  interface, `HttpGoogleTasksGateway` over HttpURLConnection + org.json, `PlayServicesAuthorizer`);
+  DB v2 auto-migration adds `google_task_links`; connection in `app_state`. 205 unit tests (107 core, 98 app).
+Next: David to verify slice 5 on the Pixel 9 (checklist below), then Slice 6 — push available tasks to Google
+(plan first).
+Slice 5 device checklist: ⋮ → Google Tasks → Connect; pick the account, accept the unverified-app warning
+(Advanced → Go to TaskManager) and grant access; choose a list; the result shows imported / linked counts and
+the tasks appear on top of Available and on the widget; existing tasks survive the DB upgrade; leaving and
+reopening the screen shows "Connected to: …"; Disconnect keeps the tasks; reconnecting links instead of
+duplicating. If sign-in fails with "developer error" (code 10), the SHA-1 / package in the OAuth client don't
+match this build.
 Open items: none.
 Backlog (after the sync slices; not scheduled):
 - Polish (slice 8): tapping anywhere on the widget (outside the checkbox / "+") opens the app; drag-and-drop
@@ -49,4 +63,13 @@ Decisions so far (revisit if wrong):
   change = REPLACE with an immediate run. WorkManager timing is inexact under Doze (no exact-alarm permission).
 - Glance LazyColumn item ids must be ≥ -2^62: `widgetItemId` folds the UUID into [0, 2^62).
 - No Undo on the widget (widgets can't show snackbars); un-complete from the app's Done tab.
+- Import: only open tasks; a Google task whose trimmed title matches (ignoring case) an OPEN, unlinked local
+  task is linked to it instead of imported (topmost local match first); blank Google titles become "Untitled";
+  subtasks are imported flat, right after their parent. Imported tasks go on top in Google's order.
+- Google due dates are midnight UTC; the date part is used as is (no zone conversion).
+- `google_task_links` has no FK to `tasks`: a link outlives a local delete so that push can delete the Google
+  copy, and such a Google task is never re-imported. Disconnect deletes all links and the stored list.
+- The connection (list id + title) is stored only when the import commits, in the same transaction; importing
+  another list while connected is refused. The import runs in `appScope`.
+- Migration tests build v1 from `app/schemas/.../1.json` and let Room validate the upgrade (no room-testing).
 Open questions: none.

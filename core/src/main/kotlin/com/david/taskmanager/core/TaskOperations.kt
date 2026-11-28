@@ -4,6 +4,8 @@ import com.david.taskmanager.core.model.Dependency
 import com.david.taskmanager.core.model.Task
 import com.david.taskmanager.core.model.TaskId
 import com.david.taskmanager.core.model.TaskStatus
+import com.david.taskmanager.core.sync.RemoteTask
+import com.david.taskmanager.core.sync.importTitle
 import java.time.Clock
 import java.time.LocalDate
 
@@ -56,6 +58,31 @@ class TaskOperations(private val clock: Clock) {
         val result = tasks + (id to task)
         DependencyGraph(result).validate(id, dependencies)
         return result
+    }
+
+    /**
+     * Creates OPEN tasks from Google tasks, on top of the list in the given order (first = top). They have no
+     * dependencies or availability date, so they are available straight away.
+     *
+     * @throws IllegalArgumentException if an id already exists.
+     */
+    fun addImported(tasks: Map<TaskId, Task>, imported: List<Pair<TaskId, RemoteTask>>): Map<TaskId, Task> {
+        if (imported.isEmpty()) return tasks
+        val now = clock.instant()
+        val first = (tasks.values.minOfOrNull { it.position } ?: 0L) - imported.size
+        val created = imported.mapIndexed { index, (id, remote) ->
+            require(id !in tasks) { "Task $id already exists" }
+            id to Task(
+                id = id,
+                title = importTitle(remote),
+                notes = remote.notes?.takeIf { it.isNotBlank() },
+                dueDate = remote.dueDate,
+                position = first + index,
+                createdAt = now,
+                updatedAt = now,
+            )
+        }
+        return tasks + created
     }
 
     /**

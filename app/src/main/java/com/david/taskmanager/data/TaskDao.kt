@@ -36,4 +36,19 @@ interface TaskDao {
 
     @Upsert
     suspend fun putState(state: AppStateEntity)
+
+    @Query("SELECT * FROM app_state WHERE `key` IN (:keys)")
+    fun observeStates(keys: List<String>): Flow<List<AppStateEntity>>
+
+    @Query("DELETE FROM app_state WHERE `key` IN (:keys)")
+    suspend fun deleteStates(keys: List<String>)
+
+    @Query("SELECT * FROM google_task_links")
+    suspend fun getGoogleLinks(): List<GoogleTaskLinkEntity>
+
+    @Insert
+    suspend fun insertGoogleLinks(links: List<GoogleTaskLinkEntity>)
+
+    @Query("DELETE FROM google_task_links")
+    suspend fun deleteAllGoogleLinks()
 }

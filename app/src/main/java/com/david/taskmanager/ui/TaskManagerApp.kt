@@ -15,6 +15,8 @@ import com.david.taskmanager.core.model.TaskId
 import com.david.taskmanager.launch.LaunchState
 import com.david.taskmanager.ui.detail.TaskDetailRoute
 import com.david.taskmanager.ui.detail.TaskDetailViewModel
+import com.david.taskmanager.ui.google.GoogleTasksRoute
+import com.david.taskmanager.ui.google.GoogleTasksViewModel
 import com.david.taskmanager.ui.lists.TaskListsRoute
 import com.david.taskmanager.ui.lists.TaskListsViewModel
 import java.util.UUID
@@ -23,10 +25,12 @@ import java.util.UUID
 sealed interface Screen {
     data object Main : Screen
     data class Detail(val taskId: TaskId) : Screen
+    data object Google : Screen
 }
 
 private const val MAIN = "main"
 private const val DETAIL_PREFIX = "detail:"
+private const val GOOGLE = "google"
 
 /** Saves the back stack as strings, so it survives configuration changes and process death. */
 private val BackStackSaver = listSaver<SnapshotStateList<Screen>, String>(
@@ -35,12 +39,17 @@ private val BackStackSaver = listSaver<SnapshotStateList<Screen>, String>(
             when (it) {
                 Screen.Main -> MAIN
                 is Screen.Detail -> DETAIL_PREFIX + it.taskId
+                Screen.Google -> GOOGLE
             }
         }
     },
     restore = { saved ->
         saved.map {
-            if (it == MAIN) Screen.Main else Screen.Detail(TaskId(UUID.fromString(it.removePrefix(DETAIL_PREFIX))))
+            when (it) {
+                MAIN -> Screen.Main
+                GOOGLE -> Screen.Google
+                else -> Screen.Detail(TaskId(UUID.fromString(it.removePrefix(DETAIL_PREFIX))))
+            }
         }.toMutableStateList()
     },
 )
@@ -66,6 +75,7 @@ fun TaskManagerApp(container: AppContainer, launch: LaunchState = LaunchState(li
                 TaskListsRoute(
                     viewModel,
                     onOpenTask = { backStack.add(Screen.Detail(it)) },
+                    onOpenGoogle = { if (backStack.last() != Screen.Google) backStack.add(Screen.Google) },
                     startWithQuickAdd = launch.quickAdd,
                 )
             }
@@ -75,6 +85,12 @@ fun TaskManagerApp(container: AppContainer, launch: LaunchState = LaunchState(li
                 }
                 // Removing this exact entry (not "the last one") makes closing idempotent.
                 TaskDetailRoute(viewModel, onClose = { backStack.remove(key) })
+            }
+            entry<Screen.Google> { key ->
+                val viewModel = viewModel {
+                    GoogleTasksViewModel(container.repository, container.googleTasks, container.appScope)
+                }
+                GoogleTasksRoute(viewModel, onBack = { backStack.remove(key) })
             }
         },
     )

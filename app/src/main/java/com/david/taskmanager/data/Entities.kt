@@ -62,3 +62,18 @@ data class TaskWithDependencies(
     @Relation(parentColumn = "id", entityColumn = "task_id")
     val dependencies: List<DependencyEntity>,
 )
+
+/**
+ * Links a local task to its copy in Google Tasks. There is deliberately no foreign key to `tasks`: when a
+ * linked task is deleted locally, the link stays so that sync knows to delete the Google copy too.
+ * [googleUpdatedAt] is Google's `updated` time when the link was last refreshed (epoch milliseconds).
+ */
+@Entity(
+    tableName = "google_task_links",
+    indices = [Index(value = ["google_task_id"], unique = true)],
+)
+data class GoogleTaskLinkEntity(
+    @PrimaryKey @ColumnInfo(name = "task_id") val taskId: String,
+    @ColumnInfo(name = "google_task_id") val googleTaskId: String,
+    @ColumnInfo(name = "google_updated_at") val googleUpdatedAt: Long,
+)

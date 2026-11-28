@@ -66,7 +66,12 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @Composable
-fun TaskListsRoute(viewModel: TaskListsViewModel, onOpenTask: (TaskId) -> Unit, startWithQuickAdd: Boolean = false) {
+fun TaskListsRoute(
+    viewModel: TaskListsViewModel,
+    onOpenTask: (TaskId) -> Unit,
+    onOpenGoogle: () -> Unit = {},
+    startWithQuickAdd: Boolean = false,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     TaskListsScreen(
         state = state,
@@ -75,6 +80,7 @@ fun TaskListsRoute(viewModel: TaskListsViewModel, onOpenTask: (TaskId) -> Unit, 
         onUncomplete = { viewModel.uncomplete(it) },
         onMove = { id, direction -> viewModel.move(id, direction) },
         onOpenTask = onOpenTask,
+        onOpenGoogle = onOpenGoogle,
         startWithQuickAdd = startWithQuickAdd,
     )
 }
@@ -89,6 +95,7 @@ fun TaskListsScreen(
     onMove: (TaskId, MoveDirection) -> Unit,
     onOpenTask: (TaskId) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenGoogle: () -> Unit = {},
     startWithQuickAdd: Boolean = false,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(TAB_AVAILABLE) }
@@ -109,7 +116,12 @@ fun TaskListsScreen(
 
     Scaffold(
         modifier = modifier,
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = { AppMenu(onOpenGoogle) },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (tab == TAB_AVAILABLE) {
@@ -306,3 +318,23 @@ private fun DoneList(tasks: List<Task>, onUncomplete: (TaskId) -> Unit, onOpenTa
 const val TAB_AVAILABLE = 0
 const val TAB_LOCKED = 1
 const val TAB_DONE = 2
+
+/** The top bar's ⋮ menu (app-wide entries, unlike the per-task menu on each row). */
+@Composable
+private fun AppMenu(onOpenGoogle: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.app_menu))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.google_tasks)) },
+                onClick = {
+                    open = false
+                    onOpenGoogle()
+                },
+            )
+        }
+    }
+}

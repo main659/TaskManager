@@ -9,6 +9,9 @@ import kotlinx.coroutines.CancellationException
 import com.david.taskmanager.core.SystemZoneClock
 import com.david.taskmanager.data.TaskDatabase
 import com.david.taskmanager.data.TaskRepository
+import com.david.taskmanager.google.GoogleTasksGateway
+import com.david.taskmanager.google.HttpGoogleTasksGateway
+import com.david.taskmanager.google.PlayServicesAuthorizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +37,9 @@ class AppContainer(context: Context) {
 
     /** Every committed change also refreshes the home-screen widget(s). */
     val repository: TaskRepository = TaskRepository(database, clock, onChange = ::updateWidgets)
+
+    /** Created on first use, so that starting the app (or a test) never touches Google Play services. */
+    val googleTasks: GoogleTasksGateway by lazy { HttpGoogleTasksGateway(PlayServicesAuthorizer(appContext)) }
 
     private suspend fun updateWidgets() {
         try {

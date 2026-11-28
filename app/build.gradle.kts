@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.play.services.auth)
     implementation(project(":core"))
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

@@ -8,10 +8,21 @@ import com.david.taskmanager.core.TaskOperations
 import com.david.taskmanager.core.model.Dependency
 import com.david.taskmanager.core.model.Task
 import com.david.taskmanager.core.model.TaskId
+import com.david.taskmanager.core.sync.RemoteTask
+import com.david.taskmanager.core.sync.RemoteTaskList
+import com.david.taskmanager.core.sync.planImport
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.LocalDate
+import java.util.UUID
+
+/** The Google Tasks list the app is connected to. Stored once the one-time import has succeeded. */
+data class GoogleConnection(val listId: String, val listTitle: String)
+
+/** Outcome of the one-time import: tasks created locally, and Google tasks linked to existing local tasks. */
+data class ImportResult(val imported: Int, val matched: Int)
 
 /**
  * The single entry point for reading and changing tasks. Every write loads all tasks, applies one
@@ -31,6 +42,14 @@ class TaskRepository(
 
     /** All tasks, in ascending `position` order. */
     val tasks: Flow<List<Task>> = dao.observeAll().map { rows -> rows.map { it.toModel() } }
+
+    /** The connected Google Tasks list, or null when not connected. */
+    val googleConnection: Flow<GoogleConnection?> = dao.observeStates(GOOGLE_KEYS)
+        .map { rows ->
+            val values = rows.associate { it.key to it.value }
+            values[KEY_GOOGLE_LIST_ID]?.let { GoogleConnection(it, values[KEY_GOOGLE_LIST_TITLE].orEmpty()) }
+        }
+        .distinctUntilChanged()
 
     suspend fun addTask(
         title: String,
@@ -109,6 +128,48 @@ class TaskRepository(
         if (changed) onChange()
     }
 
+    /**
+     * One-time import of [remote] (the open tasks of [list], in Google's order), in one transaction: creates the
+     * new tasks, links them and the matched ones (see [planImport]), and records the connection. Importing the
+     * same list again creates nothing.
+     *
+     * @throws IllegalStateException if the app is already connected to a different list.
+     */
+    suspend fun importFromGoogle(list: RemoteTaskList, remote: List<RemoteTask>): ImportResult {
+        var tasksChanged = false
+        val result = db.withTransaction {
+            val connected = dao.getState(KEY_GOOGLE_LIST_ID)
+            check(connected == null || connected == list.id) { "Already connected to another Google Tasks list" }
+            val before = load()
+            val links = dao.getGoogleLinks()
+            val plan = planImport(
+                local = before.values,
+                linkedTaskIds = links.mapTo(mutableSetOf()) { TaskId(UUID.fromString(it.taskId)) },
+                linkedRemoteIds = links.mapTo(mutableSetOf()) { it.googleTaskId },
+                remote = remote,
+            )
+            val created = plan.creates.map { TaskId.random() to it }
+            tasksChanged = save(before, ops.addImported(before, created))
+            val newLinks = created.map { (id, task) -> linkEntity(id, task) } +
+                plan.matches.map { linkEntity(it.taskId, it.remote) }
+            if (newLinks.isNotEmpty()) dao.insertGoogleLinks(newLinks)
+            dao.putState(AppStateEntity(KEY_GOOGLE_LIST_ID, list.id))
+            dao.putState(AppStateEntity(KEY_GOOGLE_LIST_TITLE, list.title))
+            ImportResult(imported = created.size, matched = plan.matches.size)
+        }
+        if (tasksChanged) onChange()
+        return result
+    }
+
+    /** Forgets the connected list and every link. Local tasks are kept; Google is not touched. */
+    suspend fun disconnectGoogle() = db.withTransaction {
+        dao.deleteAllGoogleLinks()
+        dao.deleteStates(GOOGLE_KEYS)
+    }
+
+    private fun linkEntity(id: TaskId, remote: RemoteTask) =
+        GoogleTaskLinkEntity(id.toString(), remote.id, remote.updated.toEpochMilli())
+
     private suspend fun write(operation: (Map<TaskId, Task>) -> Map<TaskId, Task>) {
         val changed = db.withTransaction {
             val before = load()
@@ -135,5 +196,8 @@ class TaskRepository(
 
     companion object {
         const val KEY_LAST_EVALUATED_DATE = "last_evaluated_date"
+        const val KEY_GOOGLE_LIST_ID = "google_list_id"
+        const val KEY_GOOGLE_LIST_TITLE = "google_list_title"
+        private val GOOGLE_KEYS = listOf(KEY_GOOGLE_LIST_ID, KEY_GOOGLE_LIST_TITLE)
     }
 }
